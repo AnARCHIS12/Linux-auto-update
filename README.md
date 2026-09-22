@@ -10,8 +10,7 @@
 
 <p align="center">
 
-[![License](https://img.shields.io/github/license/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update/blob/main/LICENSE)
-[![Repository size](https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update)
+[![License: MIT](https://img.shields.io/badge/License-MIT-red.svg)](https://github.com/AnARCHIS12/Linux-auto-update/blob/main/LICENSE)
 [![Last commit](https://img.shields.io/github/last-commit/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update/commits/main)
 [![Stars](https://img.shields.io/github/stars/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update)
 
