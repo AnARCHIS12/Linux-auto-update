@@ -1,0 +1,8 @@
+[Unit]
+Description=Linux Auto Update
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/linux-auto-update update
