@@ -4,7 +4,19 @@ LOCK_FILE="/run/lock/linux-auto-update.lock"
 log(){ printf '[linux-auto-update] %s\n' "$*"; }
 die(){ log "ERROR: $*"; exit 1; }
 manager(){
- command -v dnf >/dev/null && echo dnf || command -v apt-get >/dev/null && echo apt || command -v pacman >/dev/null && echo pacman || command -v zypper >/dev/null && echo zypper || command -v apk >/dev/null && echo apk || command -v xbps-install >/dev/null && echo xbps || command -v emerge >/dev/null && echo emerge || die "Gestionnaire non pris en charge."
+ local id
+ . /etc/os-release 2>/dev/null || true
+ id="${ID:-}"
+ case "$id" in
+   fedora|rhel|centos|rocky|almalinux|ol|mariner) command -v dnf >/dev/null && { echo dnf; return; } ;;
+   debian|ubuntu|linuxmint|pop) command -v apt-get >/dev/null && { echo apt; return; } ;;
+   arch|manjaro|endeavouros) command -v pacman >/dev/null && { echo pacman; return; } ;;
+   opensuse*|sles|suse) command -v zypper >/dev/null && { echo zypper; return; } ;;
+   alpine) command -v apk >/dev/null && { echo apk; return; } ;;
+   void) command -v xbps-install >/dev/null && { echo xbps; return; } ;;
+   gentoo) command -v emerge >/dev/null && { echo emerge; return; } ;;
+ esac
+ die "Gestionnaire non pris en charge pour ${PRETTY_NAME:-Linux}."
 }
 os(){ . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}"; }
 update_native(){
