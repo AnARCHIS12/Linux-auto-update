@@ -9,10 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/AnARCHIS12/Linux-auto-update/blob/main/LICENSE"><img src="https://img.shields.io/github/license/AnARCHIS12/Linux-auto-update?style=flat-square" alt="License"></a>
-  <a href="https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square"><img src="https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Repository size"></a>
-  <a href="https://github.com/AnARCHIS12/Linux-auto-update/commits/main"><img src="https://img.shields.io/github/last-commit/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Last commit"></a>
-  <a href="https://github.com/AnARCHIS12/Linux-auto-update"><img src="https://img.shields.io/github/stars/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Stars"></a>
+
+[![License](https://img.shields.io/github/license/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update/blob/main/LICENSE)
+[![Repository size](https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update)
+[![Last commit](https://img.shields.io/github/last-commit/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update/commits/main)
+[![Stars](https://img.shields.io/github/stars/AnARCHIS12/Linux-auto-update?style=flat-square)](https://github.com/AnARCHIS12/Linux-auto-update)
+
 </p>
 
 ## Features
