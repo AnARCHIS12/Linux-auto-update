@@ -3,7 +3,6 @@ set -Eeuo pipefail
 LOCK_FILE="/run/lock/linux-auto-update.lock"
 log(){ printf '[linux-auto-update] %s\n' "$*"; }
 die(){ log "ERROR: $*"; exit 1; }
-root(){ [[ $EUID -eq 0 ]] || die "Cette commande doit être exécutée en root."; }
 manager(){
  command -v dnf >/dev/null && echo dnf || command -v apt-get >/dev/null && echo apt || command -v pacman >/dev/null && echo pacman || command -v zypper >/dev/null && echo zypper || command -v apk >/dev/null && echo apk || command -v xbps-install >/dev/null && echo xbps || command -v emerge >/dev/null && echo emerge || die "Gestionnaire non pris en charge."
 }
@@ -33,7 +32,7 @@ status(){
  echo "Redémarrage  : $(reboot_required && echo requis || echo non signalé)"
 }
 check(){
- root
+ [[ $EUID -eq 0 ]] || exec sudo "$0" check
  local m; m="$(manager)"
  case "$m" in
  dnf) dnf check-update --refresh || [[ $? -eq 100 ]];;
@@ -46,7 +45,7 @@ check(){
  esac
 }
 update(){
- root
+ [[ $EUID -eq 0 ]] || exec sudo "$0" update
  exec 9>"$LOCK_FILE"; flock -n 9 || die "Une mise à jour est déjà en cours."
  local m; m="$(manager)"
  log "Système : $(os)"; log "Gestionnaire : $m"
