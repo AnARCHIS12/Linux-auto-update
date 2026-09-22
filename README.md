@@ -1,8 +1,8 @@
+# Linux Auto Update
+
 <p align="center">
   <img src="assets/linux-auto-update.svg" alt="Linux Auto Update" width="180">
 </p>
-
-<h1 align="center">Linux Auto Update</h1>
 
 <p align="center">
   Automatic system updates for Linux distributions.
@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/AnARCHIS12/Linux-auto-update/blob/main/LICENSE"><img src="https://img.shields.io/github/license/AnARCHIS12/Linux-auto-update?style=flat-square" alt="License"></a>
-  <a href="https://github.com/AnARCHIS12/Linux-auto-update"><img src="https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Repository size"></a>
+  <a href="https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square"><img src="https://img.shields.io/github/repo-size/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Repository size"></a>
   <a href="https://github.com/AnARCHIS12/Linux-auto-update/commits/main"><img src="https://img.shields.io/github/last-commit/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Last commit"></a>
   <a href="https://github.com/AnARCHIS12/Linux-auto-update"><img src="https://img.shields.io/github/stars/AnARCHIS12/Linux-auto-update?style=flat-square" alt="Stars"></a>
 </p>
@@ -43,6 +43,88 @@ sudo systemctl enable --now linux-auto-update.timer
 ```
 
 The updater runs every 6 hours with a randomized delay.
+
+## Optional integrations
+
+### Flatpak
+
+Flatpak updates are **enabled by default** when Flatpak is installed.
+
+```bash
+linux-auto-update update
+```
+
+### Snap
+
+Snap support is available but **disabled by default**.
+
+Enable Snap updates for a manual update:
+
+```bash
+sudo LINUX_AUTO_UPDATE_ENABLE_SNAP=1 linux-auto-update update
+```
+
+To enable Snap updates for the systemd timer:
+
+```bash
+sudo systemctl edit linux-auto-update.service
+```
+
+Add:
+
+```ini
+[Service]
+Environment=LINUX_AUTO_UPDATE_ENABLE_SNAP=1
+```
+
+Then reload systemd:
+
+```bash
+sudo systemctl daemon-reload
+```
+
+### fwupd
+
+fwupd firmware updates are available but **disabled by default**.
+
+Enable fwupd for a manual update:
+
+```bash
+sudo LINUX_AUTO_UPDATE_ENABLE_FWUPD=1 linux-auto-update update
+```
+
+To enable fwupd for the systemd timer:
+
+```bash
+sudo systemctl edit linux-auto-update.service
+```
+
+Add:
+
+```ini
+[Service]
+Environment=LINUX_AUTO_UPDATE_ENABLE_FWUPD=1
+```
+
+Then reload systemd:
+
+```bash
+sudo systemctl daemon-reload
+```
+
+You can check which optional integrations are installed and enabled with:
+
+```bash
+linux-auto-update status
+```
+
+Example:
+
+```text
+Flatpak      : oui (activé)
+Snap         : oui (désactivé)
+fwupd        : oui (désactivé)
+```
 
 ## Supported systems
 
