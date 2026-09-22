@@ -129,13 +129,68 @@ check(){
 update(){
  [[ $EUID -eq 0 ]] || exec sudo "$0" update
  exec 9>"$LOCK_FILE"; flock -n 9 || die "Une mise à jour est déjà en cours."
- local m; m="$(manager)"
- log "Système : $(os)"; log "Gestionnaire : $m"
- update_native "$m"
- command -v flatpak >/dev/null && flatpak update -y || true
- [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]] && command -v snap >/dev/null && snap refresh
- if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" == 1 ]] && command -v fwupdmgr >/dev/null; then fwupdmgr refresh --force || true; fwupdmgr update -y; fi
+ local m native_rc=0 flatpak_rc=0 snap_rc=0 fwupd_rc=0
+ m="$(manager)"
+ log "Système : $(os)"
+ log "Gestionnaire : $m"
+
+ update_native "$m" || native_rc=$?
+ if (( native_rc == 0 )); then
+   log "$m : OK"
+ else
+   log "$m : ÉCHEC (code $native_rc)"
+ fi
+
+ if command -v flatpak >/dev/null; then
+   flatpak update -y || flatpak_rc=$?
+   if (( flatpak_rc == 0 )); then
+     log "Flatpak : OK"
+   else
+     log "Flatpak : ÉCHEC (code $flatpak_rc)"
+   fi
+ else
+   log "Flatpak : ignoré (non installé)"
+ fi
+
+ if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]]; then
+   if command -v snap >/dev/null; then
+     snap refresh || snap_rc=$?
+     if (( snap_rc == 0 )); then
+       log "Snap : OK"
+     else
+       log "Snap : ÉCHEC (code $snap_rc)"
+     fi
+   else
+     log "Snap : ignoré (non installé)"
+   fi
+ else
+   log "Snap : ignoré (désactivé)"
+ fi
+
+ if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" == 1 ]]; then
+   if command -v fwupdmgr >/dev/null; then
+     fwupd_rc=0
+     fwupdmgr refresh --force || fwupd_rc=$?
+     if (( fwupd_rc == 0 )); then
+       fwupdmgr update -y || fwupd_rc=$?
+     fi
+     if (( fwupd_rc == 0 )); then
+       log "fwupd : OK"
+     else
+       log "fwupd : ÉCHEC (code $fwupd_rc)"
+     fi
+   else
+     log "fwupd : ignoré (non installé)"
+   fi
+ else
+   log "fwupd : ignoré (désactivé)"
+ fi
+
  reboot_required && log "Un redémarrage est requis." || true
+ if (( native_rc != 0 || flatpak_rc != 0 || snap_rc != 0 || fwupd_rc != 0 )); then
+   log "Mise à jour terminée avec des erreurs."
+   return 1
+ fi
  log "Mise à jour terminée."
 }
 case "${1:-status}" in check) check;; update) update;; status) status;; *) echo "Usage: linux-auto-update {check|update|status}"; exit 2;; esac
