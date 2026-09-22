@@ -35,12 +35,40 @@ reboot_required(){
  [[ -e /run/reboot-required ]]
 }
 status(){
- local m; m="$(manager)"
+ local m flatpak_status snap_status fwupd_status
+ m="$(manager)"
+
+ if command -v flatpak >/dev/null; then
+   flatpak_status="oui (activé)"
+ else
+   flatpak_status="non"
+ fi
+
+ if command -v snap >/dev/null; then
+   if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]]; then
+     snap_status="oui (activé)"
+   else
+     snap_status="oui (désactivé)"
+   fi
+ else
+   snap_status="non"
+ fi
+
+ if command -v fwupdmgr >/dev/null; then
+   if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" == 1 ]]; then
+     fwupd_status="oui (activé)"
+   else
+     fwupd_status="oui (désactivé)"
+   fi
+ else
+   fwupd_status="non"
+ fi
+
  echo "Distribution : $(os)"
  echo "Gestionnaire : $m"
- echo "Flatpak      : $(command -v flatpak >/dev/null && echo oui || echo non)"
- echo "Snap         : $(command -v snap >/dev/null && echo oui || echo non)"
- echo "fwupd        : $(command -v fwupdmgr >/dev/null && echo oui || echo non)"
+ echo "Flatpak      : $flatpak_status"
+ echo "Snap         : $snap_status"
+ echo "fwupd        : $fwupd_status"
  echo "Redémarrage  : $(reboot_required && echo requis || echo non signalé)"
 }
 check(){
