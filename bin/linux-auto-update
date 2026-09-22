@@ -34,14 +34,56 @@ status(){
 check(){
  [[ $EUID -eq 0 ]] || exec sudo "$0" check
  local m; m="$(manager)"
+ log "Système : $(os)"
+ log "Gestionnaire : $m"
+ log "Vérification des mises à jour..."
  case "$m" in
- dnf) dnf check-update --refresh || [[ $? -eq 100 ]];;
- apt) apt-get update; apt list --upgradable 2>/dev/null || true;;
- pacman) pacman -Qu || true;;
- zypper) zypper --non-interactive list-updates || true;;
- apk) apk version -l '<' || true;;
- xbps) xbps-install -Mun || true;;
- emerge) emerge -pvuDN @world || true;;
+ dnf)
+   local rc=0 output
+   output="$(dnf check-update --refresh 2>&1)" || rc=$?
+   printf '%s\n' "$output"
+   case "$rc" in
+     0) log "Aucune mise à jour disponible.";;
+     100) log "Des mises à jour sont disponibles.";;
+     *) die "La vérification DNF a échoué (code $rc).";;
+   esac
+   ;;
+ apt)
+   apt-get update
+   local output
+   output="$(apt list --upgradable 2>/dev/null || true)"
+   if grep -q '^Listing\.\.\.' <<<"$output" && [[ "$(printf '%s\n' "$output" | tail -n +2 | sed '/^$/d' | wc -l)" -eq 0 ]]; then
+     log "Aucune mise à jour disponible."
+   else
+     printf '%s\n' "$output"
+     log "Des mises à jour sont disponibles."
+   fi
+   ;;
+ pacman)
+   local output
+   output="$(pacman -Qu 2>/dev/null || true)"
+   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour sont disponibles."; else log "Aucune mise à jour disponible."; fi
+   ;;
+ zypper)
+   local output
+   output="$(zypper --non-interactive list-updates 2>&1 || true)"
+   printf '%s\n' "$output"
+   grep -q '^No updates found' <<<"$output" && log "Aucune mise à jour disponible." || log "Vérification terminée."
+   ;;
+ apk)
+   local output
+   output="$(apk version -l '<' 2>&1 || true)"
+   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour sont disponibles."; else log "Aucune mise à jour disponible."; fi
+   ;;
+ xbps)
+   local output
+   output="$(xbps-install -Mun 2>&1 || true)"
+   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour sont disponibles."; else log "Aucune mise à jour disponible."; fi
+   ;;
+ emerge)
+   emerge -pvuDN @world || true
+   log "Vérification Gentoo terminée.";
+   ;;
  esac
 }
 update(){
