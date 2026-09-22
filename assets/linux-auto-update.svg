@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title>Linux Auto Update</title>
+<desc>Red and black penguin surrounded by update arrows</desc>
+<rect width="512" height="512" rx="72" fill="#000"/>
+<g fill="none" stroke="#e00000" stroke-width="24" stroke-linecap="round">
+<path d="M256 52a204 204 0 0 1 183 113l-39 18"/>
+<path d="M460 165l-8 48"/>
+<path d="M52 347A204 204 0 0 1 73 132l39 20"/>
+<path d="M52 347l46-4"/>
+</g>
+<g stroke="#e00000" stroke-width="7">
+<path d="M256 82c-56 0-92 40-92 96v38c0 19-8 34-23 51-20 23-30 51-30 86 0 69 49 109 145 109s145-40 145-109c0-35-10-63-30-86-15-17-23-32-23-51v-38c0-56-36-96-92-96z" fill="#050505"/>
+<path d="M181 223c-1-52 22-91 75-91s76 39 75 91c0 16 5 28 17 43l24 31c-11-5-24-8-37-8H177c-13 0-26 3-37 8l24-31c12-15 17-27 17-43z" fill="#050505"/>
+<path d="M190 300c13-35 35-52 66-52s53 17 66 52c14 38 17 83 0 115-13 25-35 39-66 39s-53-14-66-39c-17-32-14-77 0-115z" fill="#e00000"/>
+<path d="M204 186c-14-26-9-61 15-78 19-13 39 0 37 25-2 22-17 43-52 53zM308 186c14-26 9-61-15-78-19-13-39 0-37 25 2 22 17 43 52 53z" fill="#e00000"/>
+<path d="M256 151l38 28-38 28-38-28z" fill="#e00000" stroke="#000" stroke-width="9"/>
+<circle cx="221" cy="151" r="12" fill="#fff" stroke="none"/>
+<circle cx="291" cy="151" r="12" fill="#fff" stroke="none"/>
+<path d="M151 456c-14 16-35 18-49 4l28-29c8-9 17-12 29-8zM361 456c14 16 35 18 49 4l-28-29c-8-9-17-12-29-8z" fill="#e00000"/>
+</g>
+<g fill="none" stroke="#000" stroke-width="18" stroke-linecap="round">
+<path d="M211 337a51 51 0 0 1 90-12"/>
+<path d="M301 337l-2-27"/>
+<path d="M301 337l-28-1"/>
+<path d="M301 337a51 51 0 0 1-90 12"/>
+<path d="M211 349l2 27"/>
+<path d="M211 349l28 1"/>
+</g>
+</svg>
