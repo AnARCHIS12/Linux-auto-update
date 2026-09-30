@@ -43,13 +43,13 @@ sudo ./install.sh
 sudo systemctl enable --now linux-auto-update.timer
 ```
 
-The updater runs every 6 hours with a randomized delay.
+The updater runs every 2 hours with a randomized delay.
 
-## Optional integrations
+## Integrations
 
 ### Flatpak
 
-Flatpak updates are **enabled by default** when Flatpak is installed.
+Flatpak updates are **enabled by default** for both system and user installations when Flatpak is installed.
 
 ```bash
 linux-auto-update update

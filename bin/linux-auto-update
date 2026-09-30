@@ -6,16 +6,23 @@ die(){ log "ERROR: $*"; exit 1; }
 manager(){
  local id
  . /etc/os-release 2>/dev/null || true
- id="${ID:-}"
+ id="${ID:-} ${ID_LIKE:-}"
  case "$id" in
-   fedora|rhel|centos|rocky|almalinux|ol|mariner) command -v dnf >/dev/null && { echo dnf; return; } ;;
-   debian|ubuntu|linuxmint|pop) command -v apt-get >/dev/null && { echo apt; return; } ;;
-   arch|manjaro|endeavouros) command -v pacman >/dev/null && { echo pacman; return; } ;;
-   opensuse*|sles|suse) command -v zypper >/dev/null && { echo zypper; return; } ;;
-   alpine) command -v apk >/dev/null && { echo apk; return; } ;;
-   void) command -v xbps-install >/dev/null && { echo xbps; return; } ;;
-   gentoo) command -v emerge >/dev/null && { echo emerge; return; } ;;
+   *fedora*|*rhel*|*centos*|*rocky*|*almalinux*|*ol*|*mariner*) command -v dnf >/dev/null && { echo dnf; return; } ;;
+   *debian*|*ubuntu*|*linuxmint*|*pop*) command -v apt-get >/dev/null && { echo apt; return; } ;;
+   *arch*|*manjaro*|*endeavouros*) command -v pacman >/dev/null && { echo pacman; return; } ;;
+   *opensuse*|*sles*|*suse*) command -v zypper >/dev/null && { echo zypper; return; } ;;
+   *alpine*) command -v apk >/dev/null && { echo apk; return; } ;;
+   *void*) command -v xbps-install >/dev/null && { echo xbps; return; } ;;
+   *gentoo*) command -v emerge >/dev/null && { echo emerge; return; } ;;
  esac
+ if command -v dnf >/dev/null; then echo dnf; return; fi
+ if command -v apt-get >/dev/null; then echo apt; return; fi
+ if command -v pacman >/dev/null; then echo pacman; return; fi
+ if command -v zypper >/dev/null; then echo zypper; return; fi
+ if command -v apk >/dev/null; then echo apk; return; fi
+ if command -v xbps-install >/dev/null; then echo xbps; return; fi
+ if command -v emerge >/dev/null; then echo emerge; return; fi
  die "Gestionnaire non pris en charge pour ${PRETTY_NAME:-Linux}."
 }
 os(){ . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}"; }
@@ -30,16 +37,74 @@ update_native(){
  emerge) emerge --sync; emerge --update --deep --newuse @world;;
  esac
 }
+sync_packagekit(){
+ if command -v pkcon >/dev/null 2>&1; then
+   pkcon refresh force -c -1 >/dev/null 2>&1 || true
+ fi
+}
 reboot_required(){
- command -v needs-restarting >/dev/null && ! needs-restarting -r >/dev/null 2>&1 && return 0
- [[ -e /run/reboot-required ]]
+ [[ -e /run/reboot-required ]] && return 0
+ if [[ -d /lib/modules ]]; then
+   local latest_k current_k
+   latest_k="$(ls -1v /lib/modules 2>/dev/null | tail -n 1)"
+   current_k="$(uname -r)"
+   if [[ -n "$latest_k" && -n "$current_k" && "$latest_k" != "$current_k" ]]; then
+     return 0
+   fi
+ fi
+ if command -v needs-restarting >/dev/null 2>&1; then
+   ! needs-restarting -r >/dev/null 2>&1 && return 0
+ elif [[ $EUID -eq 0 ]] && command -v dnf >/dev/null 2>&1; then
+   ! dnf -C needs-restarting -r >/dev/null 2>&1 && return 0
+ fi
+ return 1
+}
+update_flatpaks(){
+ local rc=0
+ if ! command -v flatpak >/dev/null; then
+   log "Flatpak : ignoré (non installé)"
+   return 0
+ fi
+
+ # 1. Mise à jour système
+ flatpak update -y || rc=$?
+
+ # 2. Mise à jour des installations utilisateurs (mode sudo ou service root)
+ if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
+   local su_uid
+   su_uid="$(id -u "$SUDO_USER" 2>/dev/null || true)"
+   if [[ -n "$su_uid" && -d "/run/user/$su_uid" ]]; then
+     su - "$SUDO_USER" -s /bin/sh -c "export XDG_RUNTIME_DIR=/run/user/$su_uid; flatpak update -y" 2>/dev/null || rc=$?
+   else
+     su - "$SUDO_USER" -s /bin/sh -c 'flatpak update -y' 2>/dev/null || rc=$?
+   fi
+ elif [[ $EUID -eq 0 ]]; then
+   while IFS=: read -r username _ uid _ _ udir _; do
+     if (( uid >= 1000 && uid < 65534 )) && [[ -d "$udir/.local/share/flatpak" ]]; then
+       if [[ -d "/run/user/$uid" ]]; then
+         su - "$username" -s /bin/sh -c "export XDG_RUNTIME_DIR=/run/user/$uid; flatpak update -y" 2>/dev/null || rc=$?
+       else
+         su - "$username" -s /bin/sh -c 'flatpak update -y' 2>/dev/null || rc=$?
+       fi
+     fi
+   done < /etc/passwd
+ else
+   flatpak --user update -y 2>/dev/null || rc=$?
+ fi
+
+ if (( rc == 0 )); then
+   log "Flatpak : OK (système et utilisateurs)"
+ else
+   log "Flatpak : ÉCHEC (code $rc)"
+ fi
+ return "$rc"
 }
 status(){
- local m flatpak_status snap_status fwupd_status
+ local m flatpak_status snap_status fwupd_status timer_status
  m="$(manager)"
 
  if command -v flatpak >/dev/null; then
-   flatpak_status="oui (activé)"
+   flatpak_status="oui (activé, système + utilisateur)"
  else
    flatpak_status="non"
  fi
@@ -64,11 +129,18 @@ status(){
    fwupd_status="non"
  fi
 
+ if systemctl is-active linux-auto-update.timer >/dev/null 2>&1; then
+   timer_status="actif"
+ else
+   timer_status="inactif"
+ fi
+
  echo "Distribution : $(os)"
  echo "Gestionnaire : $m"
  echo "Flatpak      : $flatpak_status"
  echo "Snap         : $snap_status"
  echo "fwupd        : $fwupd_status"
+ echo "Timer systemd: $timer_status"
  echo "Redémarrage  : $(reboot_required && echo requis || echo non signalé)"
 }
 check(){
@@ -83,8 +155,8 @@ check(){
    output="$(dnf check-update --refresh 2>&1)" || rc=$?
    printf '%s\n' "$output"
    case "$rc" in
-     0) log "Aucune mise à jour disponible.";;
-     100) log "Des mises à jour sont disponibles.";;
+     0) log "Aucune mise à jour DNF disponible.";;
+     100) log "Des mises à jour DNF sont disponibles.";;
      *) die "La vérification DNF a échoué (code $rc).";;
    esac
    ;;
@@ -93,38 +165,56 @@ check(){
    local output
    output="$(apt list --upgradable 2>/dev/null || true)"
    if grep -q '^Listing\.\.\.' <<<"$output" && [[ "$(printf '%s\n' "$output" | tail -n +2 | sed '/^$/d' | wc -l)" -eq 0 ]]; then
-     log "Aucune mise à jour disponible."
+     log "Aucune mise à jour APT disponible."
    else
      printf '%s\n' "$output"
-     log "Des mises à jour sont disponibles."
+     log "Des mises à jour APT sont disponibles."
    fi
    ;;
  pacman)
    local output
    output="$(pacman -Qu 2>/dev/null || true)"
-   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour sont disponibles."; else log "Aucune mise à jour disponible."; fi
+   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour Pacman sont disponibles."; else log "Aucune mise à jour Pacman disponible."; fi
    ;;
  zypper)
    local output
    output="$(zypper --non-interactive list-updates 2>&1 || true)"
    printf '%s\n' "$output"
-   grep -q '^No updates found' <<<"$output" && log "Aucune mise à jour disponible." || log "Vérification terminée."
+   grep -q '^No updates found' <<<"$output" && log "Aucune mise à jour Zypper disponible." || log "Vérification Zypper terminée."
    ;;
  apk)
    local output
    output="$(apk version -l '<' 2>&1 || true)"
-   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour sont disponibles."; else log "Aucune mise à jour disponible."; fi
+   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour APK sont disponibles."; else log "Aucune mise à jour APK disponible."; fi
    ;;
  xbps)
    local output
    output="$(xbps-install -Mun 2>&1 || true)"
-   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour sont disponibles."; else log "Aucune mise à jour disponible."; fi
+   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour XBPS sont disponibles."; else log "Aucune mise à jour XBPS disponible."; fi
    ;;
  emerge)
    emerge -pvuDN @world || true
    log "Vérification Gentoo terminée.";
    ;;
  esac
+
+ if command -v flatpak >/dev/null; then
+   log "Vérification des mises à jour Flatpak..."
+   local fp_out fp_uout
+   fp_out="$(flatpak remote-ls --updates 2>/dev/null || true)"
+   if [[ -n "$fp_out" ]]; then
+     printf '%s\n' "$fp_out"
+     log "Des mises à jour Flatpak (système) sont disponibles."
+   fi
+   fp_uout="$(flatpak --user remote-ls --updates 2>/dev/null || true)"
+   if [[ -n "$fp_uout" ]]; then
+     printf '%s\n' "$fp_uout"
+     log "Des mises à jour Flatpak (utilisateur) sont disponibles."
+   fi
+   if [[ -z "$fp_out" && -z "$fp_uout" ]]; then
+     log "Aucune mise à jour Flatpak disponible."
+   fi
+ fi
 }
 update(){
  [[ $EUID -eq 0 ]] || exec sudo "$0" update
@@ -137,20 +227,12 @@ update(){
  update_native "$m" || native_rc=$?
  if (( native_rc == 0 )); then
    log "$m : OK"
+   sync_packagekit
  else
    log "$m : ÉCHEC (code $native_rc)"
  fi
 
- if command -v flatpak >/dev/null; then
-   flatpak update -y || flatpak_rc=$?
-   if (( flatpak_rc == 0 )); then
-     log "Flatpak : OK"
-   else
-     log "Flatpak : ÉCHEC (code $flatpak_rc)"
-   fi
- else
-   log "Flatpak : ignoré (non installé)"
- fi
+ update_flatpaks || flatpak_rc=$?
 
  if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]]; then
    if command -v snap >/dev/null; then
@@ -170,9 +252,9 @@ update(){
  if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" == 1 ]]; then
    if command -v fwupdmgr >/dev/null; then
      fwupd_rc=0
-     fwupdmgr refresh --force || fwupd_rc=$?
+     fwupdmgr refresh --force >/dev/null 2>&1 || fwupd_rc=$?
      if (( fwupd_rc == 0 )); then
-       fwupdmgr update -y || fwupd_rc=$?
+       fwupdmgr update -y --no-unreported-check >/dev/null 2>&1 || fwupd_rc=$?
      fi
      if (( fwupd_rc == 0 )); then
        log "fwupd : OK"

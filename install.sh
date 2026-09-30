@@ -6,5 +6,5 @@ install -Dm755 "$ROOT/bin/linux-auto-update" /usr/local/bin/linux-auto-update
 install -Dm644 "$ROOT/systemd/linux-auto-update.service" /etc/systemd/system/linux-auto-update.service
 install -Dm644 "$ROOT/systemd/linux-auto-update.timer" /etc/systemd/system/linux-auto-update.timer
 systemctl daemon-reload
-echo "Installation terminée."
-echo "Activez le timer : sudo systemctl enable --now linux-auto-update.timer"
+systemctl enable --now linux-auto-update.timer
+echo "Installation terminée et timer systemd activé."
