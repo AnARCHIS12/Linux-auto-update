@@ -25,6 +25,7 @@
 - systemd timer support.
 - Reboot-required detection.
 - Locking against concurrent updates.
+- Low-priority CPU and disk scheduling.
 
 ## Usage
 
@@ -43,7 +44,13 @@ sudo ./install.sh
 sudo systemctl enable --now linux-auto-update.timer
 ```
 
-The updater runs every 2 hours with a randomized delay.
+The updater runs once per day between 03:00 and 06:00, with a stable randomized delay per machine. A missed run is performed after the next boot.
+
+Do not enable another automatic package updater at the same time. On Fedora, for example, disable the download-only DNF timer after installing Linux Auto Update:
+
+```bash
+sudo systemctl disable --now dnf5-automatic.timer
+```
 
 ## Integrations
 
@@ -86,7 +93,7 @@ sudo systemctl daemon-reload
 
 ### fwupd
 
-fwupd firmware updates are available but **disabled by default**.
+fwupd firmware updates are **disabled for manual runs** and **enabled by default for the systemd timer**.
 
 Enable fwupd for a manual update:
 
@@ -94,7 +101,7 @@ Enable fwupd for a manual update:
 sudo LINUX_AUTO_UPDATE_ENABLE_FWUPD=1 linux-auto-update update
 ```
 
-To enable fwupd for the systemd timer:
+To disable fwupd for the systemd timer:
 
 ```bash
 sudo systemctl edit linux-auto-update.service
@@ -104,7 +111,7 @@ Add:
 
 ```ini
 [Service]
-Environment=LINUX_AUTO_UPDATE_ENABLE_FWUPD=1
+Environment=LINUX_AUTO_UPDATE_ENABLE_FWUPD=0
 ```
 
 Then reload systemd:

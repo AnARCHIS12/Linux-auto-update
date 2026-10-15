@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-LOCK_FILE="/run/lock/linux-auto-update.lock"
-log(){ printf '[linux-auto-update] %s\n' "$*"; }
-die(){ log "ERROR: $*"; exit 1; }
+
+readonly LOCK_FILE="/run/lock/linux-auto-update.lock"
+readonly OS_RELEASE_FILE="/etc/os-release"
+readonly PASSWD_FILE="/etc/passwd"
+
+log() { printf '[linux-auto-update] %s\n' "$*"; }
+die() { log "ERREUR : $*" >&2; exit 1; }
+has() { command -v "$1" >/dev/null 2>&1; }
+
 manager(){
  local id
- . /etc/os-release 2>/dev/null || true
+ [[ -r "$OS_RELEASE_FILE" ]] && . "$OS_RELEASE_FILE"
  id="${ID:-} ${ID_LIKE:-}"
  case "$id" in
    *fedora*|*rhel*|*centos*|*rocky*|*almalinux*|*ol*|*mariner*) command -v dnf >/dev/null && { echo dnf; return; } ;;
@@ -25,7 +31,10 @@ manager(){
  if command -v emerge >/dev/null; then echo emerge; return; fi
  die "Gestionnaire non pris en charge pour ${PRETTY_NAME:-Linux}."
 }
-os(){ . /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-Linux}"; }
+os(){
+ [[ -r "$OS_RELEASE_FILE" ]] && . "$OS_RELEASE_FILE"
+ echo "${PRETTY_NAME:-Linux}"
+}
 update_native(){
  case "$1" in
  dnf) dnf -y upgrade --refresh;;
@@ -36,11 +45,6 @@ update_native(){
  xbps) xbps-install -Syu;;
  emerge) emerge --sync; emerge --update --deep --newuse @world;;
  esac
-}
-sync_packagekit(){
- if command -v pkcon >/dev/null 2>&1; then
-   pkcon refresh force -c -1 >/dev/null 2>&1 || true
- fi
 }
 reboot_required(){
  [[ -e /run/reboot-required ]] && return 0
@@ -61,7 +65,7 @@ reboot_required(){
 }
 update_flatpaks(){
  local rc=0
- if ! command -v flatpak >/dev/null; then
+ if ! has flatpak; then
    log "Flatpak : ignoré (non installé)"
    return 0
  fi
@@ -87,7 +91,7 @@ update_flatpaks(){
          su - "$username" -s /bin/sh -c 'flatpak update -y' 2>/dev/null || rc=$?
        fi
      fi
-   done < /etc/passwd
+   done < "$PASSWD_FILE"
  else
    flatpak --user update -y 2>/dev/null || rc=$?
  fi
@@ -97,6 +101,47 @@ update_flatpaks(){
  else
    log "Flatpak : ÉCHEC (code $rc)"
  fi
+ return "$rc"
+}
+
+update_snap(){
+ local rc=0
+ if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" != 1 ]]; then
+   log "Snap : ignoré (désactivé)"
+   return 0
+ fi
+ if ! has snap; then
+   log "Snap : ignoré (non installé)"
+   return 0
+ fi
+ snap refresh || rc=$?
+ if (( rc == 0 )); then
+   log "Snap : OK"
+   return 0
+ fi
+ log "Snap : ÉCHEC (code $rc)"
+ return "$rc"
+}
+
+update_firmware(){
+ local rc=0
+ if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" != 1 ]]; then
+   log "fwupd : ignoré (désactivé)"
+   return 0
+ fi
+ if ! has fwupdmgr; then
+   log "fwupd : ignoré (non installé)"
+   return 0
+ fi
+ fwupdmgr refresh >/dev/null || rc=$?
+ if (( rc == 0 )); then
+   fwupdmgr update -y --no-unreported-check >/dev/null || rc=$?
+ fi
+ if (( rc == 0 )); then
+   log "fwupd : OK"
+   return 0
+ fi
+ log "fwupd : ÉCHEC (code $rc)"
  return "$rc"
 }
 status(){
@@ -227,46 +272,13 @@ update(){
  update_native "$m" || native_rc=$?
  if (( native_rc == 0 )); then
    log "$m : OK"
-   sync_packagekit
  else
    log "$m : ÉCHEC (code $native_rc)"
  fi
 
  update_flatpaks || flatpak_rc=$?
-
- if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]]; then
-   if command -v snap >/dev/null; then
-     snap refresh || snap_rc=$?
-     if (( snap_rc == 0 )); then
-       log "Snap : OK"
-     else
-       log "Snap : ÉCHEC (code $snap_rc)"
-     fi
-   else
-     log "Snap : ignoré (non installé)"
-   fi
- else
-   log "Snap : ignoré (désactivé)"
- fi
-
- if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" == 1 ]]; then
-   if command -v fwupdmgr >/dev/null; then
-     fwupd_rc=0
-     fwupdmgr refresh --force >/dev/null 2>&1 || fwupd_rc=$?
-     if (( fwupd_rc == 0 )); then
-       fwupdmgr update -y --no-unreported-check >/dev/null 2>&1 || fwupd_rc=$?
-     fi
-     if (( fwupd_rc == 0 )); then
-       log "fwupd : OK"
-     else
-       log "fwupd : ÉCHEC (code $fwupd_rc)"
-     fi
-   else
-     log "fwupd : ignoré (non installé)"
-   fi
- else
-   log "fwupd : ignoré (désactivé)"
- fi
+ update_snap || snap_rc=$?
+ update_firmware || fwupd_rc=$?
 
  reboot_required && log "Un redémarrage est requis." || true
  if (( native_rc != 0 || flatpak_rc != 0 || snap_rc != 0 || fwupd_rc != 0 )); then
@@ -275,4 +287,15 @@ update(){
  fi
  log "Mise à jour terminée."
 }
-case "${1:-status}" in check) check;; update) update;; status) status;; *) echo "Usage: linux-auto-update {check|update|status}"; exit 2;; esac
+main(){
+ case "${1:-status}" in
+   check) check ;;
+   update) update ;;
+   status) status ;;
+   *) echo "Usage: linux-auto-update {check|update|status}"; return 2 ;;
+ esac
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+ main "$@"
+fi

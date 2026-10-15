@@ -7,4 +7,7 @@ install -Dm644 "$ROOT/systemd/linux-auto-update.service" /etc/systemd/system/lin
 install -Dm644 "$ROOT/systemd/linux-auto-update.timer" /etc/systemd/system/linux-auto-update.timer
 systemctl daemon-reload
 systemctl enable --now linux-auto-update.timer
+if systemctl is-enabled --quiet dnf5-automatic.timer 2>/dev/null || systemctl is-enabled --quiet dnf-automatic.timer 2>/dev/null; then
+  echo "Attention : un autre service de mise à jour DNF est actif. Désactivez-le pour éviter les chevauchements."
+fi
 echo "Installation terminée et timer systemd activé."

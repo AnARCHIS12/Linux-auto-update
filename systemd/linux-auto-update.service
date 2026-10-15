@@ -5,5 +5,15 @@ After=network-online.target
 
 [Service]
 Type=oneshot
+User=root
+Group=root
 Environment=LINUX_AUTO_UPDATE_ENABLE_FWUPD=1
+Environment=LC_ALL=C.UTF-8
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/usr/local/bin/linux-auto-update update
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=10
+IOWeight=10
+TimeoutStartSec=6h
+UMask=0022
