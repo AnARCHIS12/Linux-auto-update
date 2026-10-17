@@ -31,21 +31,30 @@ manager(){
  if command -v emerge >/dev/null; then echo emerge; return; fi
  die "Gestionnaire non pris en charge pour ${PRETTY_NAME:-Linux}."
 }
+
 os(){
  [[ -r "$OS_RELEASE_FILE" ]] && . "$OS_RELEASE_FILE"
  echo "${PRETTY_NAME:-Linux}"
 }
+
 update_native(){
  case "$1" in
- dnf) dnf -y upgrade --refresh;;
- apt) export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get -y upgrade;;
- pacman) pacman --noconfirm -Syu;;
- zypper) zypper --non-interactive refresh; zypper --non-interactive update;;
- apk) apk update; apk upgrade;;
- xbps) xbps-install -Syu;;
- emerge) emerge --sync; emerge --update --deep --newuse @world;;
+   dnf) dnf -y upgrade --refresh ;;
+   apt) export DEBIAN_FRONTEND=noninteractive; apt-get update; apt-get -y upgrade ;;
+   pacman) pacman --noconfirm -Syu ;;
+   zypper) zypper --non-interactive refresh; zypper --non-interactive update ;;
+   apk) apk update; apk upgrade ;;
+   xbps) xbps-install -Syu ;;
+   emerge) emerge --sync; emerge --update --deep --newuse @world ;;
  esac
 }
+
+sync_packagekit(){
+ if has pkcon; then
+   pkcon refresh force -c -1 >/dev/null 2>&1 || true
+ fi
+}
+
 reboot_required(){
  [[ -e /run/reboot-required ]] && return 0
  if [[ -d /lib/modules ]]; then
@@ -63,6 +72,7 @@ reboot_required(){
  fi
  return 1
 }
+
 update_flatpaks(){
  local rc=0
  if ! has flatpak; then
@@ -73,7 +83,7 @@ update_flatpaks(){
  # 1. Mise à jour système
  flatpak update -y || rc=$?
 
- # 2. Mise à jour des installations utilisateurs (mode sudo ou service root)
+ # 2. Mise à jour des installations utilisateurs
  if [[ -n "${SUDO_USER:-}" && "$SUDO_USER" != "root" ]]; then
    local su_uid
    su_uid="$(id -u "$SUDO_USER" 2>/dev/null || true)"
@@ -133,28 +143,28 @@ update_firmware(){
    log "fwupd : ignoré (non installé)"
    return 0
  fi
- fwupdmgr refresh >/dev/null || rc=$?
- if (( rc == 0 )); then
-   fwupdmgr update -y --no-unreported-check >/dev/null || rc=$?
- fi
- if (( rc == 0 )); then
+ fwupdmgr refresh >/dev/null 2>&1 || true
+ fwupdmgr update -y --no-unreported-check >/dev/null 2>&1 || rc=$?
+ # fwupdmgr renvoie 2 (FWUPD_ERROR_NOTHING_TO_DO) quand aucune mise à jour n'est requise
+ if (( rc == 0 || rc == 2 )); then
    log "fwupd : OK"
    return 0
  fi
  log "fwupd : ÉCHEC (code $rc)"
  return "$rc"
 }
+
 status(){
  local m flatpak_status snap_status fwupd_status timer_status
  m="$(manager)"
 
- if command -v flatpak >/dev/null; then
+ if has flatpak; then
    flatpak_status="oui (activé, système + utilisateur)"
  else
    flatpak_status="non"
  fi
 
- if command -v snap >/dev/null; then
+ if has snap; then
    if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]]; then
      snap_status="oui (activé)"
    else
@@ -164,7 +174,7 @@ status(){
    snap_status="non"
  fi
 
- if command -v fwupdmgr >/dev/null; then
+ if has fwupdmgr; then
    if [[ "${LINUX_AUTO_UPDATE_ENABLE_FWUPD:-0}" == 1 ]]; then
      fwupd_status="oui (activé)"
    else
@@ -188,62 +198,81 @@ status(){
  echo "Timer systemd: $timer_status"
  echo "Redémarrage  : $(reboot_required && echo requis || echo non signalé)"
 }
+
 check(){
- [[ $EUID -eq 0 ]] || exec sudo "$0" check
- local m; m="$(manager)"
+ local m
+ m="$(manager)"
  log "Système : $(os)"
  log "Gestionnaire : $m"
  log "Vérification des mises à jour..."
+
  case "$m" in
- dnf)
-   local rc=0 output
-   output="$(dnf check-update --refresh 2>&1)" || rc=$?
-   printf '%s\n' "$output"
-   case "$rc" in
-     0) log "Aucune mise à jour DNF disponible.";;
-     100) log "Des mises à jour DNF sont disponibles.";;
-     *) die "La vérification DNF a échoué (code $rc).";;
-   esac
-   ;;
- apt)
-   apt-get update
-   local output
-   output="$(apt list --upgradable 2>/dev/null || true)"
-   if grep -q '^Listing\.\.\.' <<<"$output" && [[ "$(printf '%s\n' "$output" | tail -n +2 | sed '/^$/d' | wc -l)" -eq 0 ]]; then
-     log "Aucune mise à jour APT disponible."
-   else
+   dnf)
+     local rc=0 output
+     output="$(dnf check-update -y 2>&1)" || rc=$?
      printf '%s\n' "$output"
-     log "Des mises à jour APT sont disponibles."
-   fi
-   ;;
- pacman)
-   local output
-   output="$(pacman -Qu 2>/dev/null || true)"
-   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour Pacman sont disponibles."; else log "Aucune mise à jour Pacman disponible."; fi
-   ;;
- zypper)
-   local output
-   output="$(zypper --non-interactive list-updates 2>&1 || true)"
-   printf '%s\n' "$output"
-   grep -q '^No updates found' <<<"$output" && log "Aucune mise à jour Zypper disponible." || log "Vérification Zypper terminée."
-   ;;
- apk)
-   local output
-   output="$(apk version -l '<' 2>&1 || true)"
-   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour APK sont disponibles."; else log "Aucune mise à jour APK disponible."; fi
-   ;;
- xbps)
-   local output
-   output="$(xbps-install -Mun 2>&1 || true)"
-   if [[ -n "$output" ]]; then printf '%s\n' "$output"; log "Des mises à jour XBPS sont disponibles."; else log "Aucune mise à jour XBPS disponible."; fi
-   ;;
- emerge)
-   emerge -pvuDN @world || true
-   log "Vérification Gentoo terminée.";
-   ;;
+     case "$rc" in
+       0) log "Aucune mise à jour DNF disponible." ;;
+       100) log "Des mises à jour DNF sont disponibles." ;;
+       *) log "Vérification DNF terminée (code $rc)." ;;
+     esac
+     ;;
+   apt)
+     if [[ $EUID -eq 0 ]]; then
+       apt-get update
+     fi
+     local output
+     output="$(apt list --upgradable 2>/dev/null || true)"
+     if grep -q '^Listing\.\.\.' <<<"$output" && [[ "$(printf '%s\n' "$output" | tail -n +2 | sed '/^$/d' | wc -l)" -eq 0 ]]; then
+       log "Aucune mise à jour APT disponible."
+     else
+       printf '%s\n' "$output"
+       log "Des mises à jour APT sont disponibles."
+     fi
+     ;;
+   pacman)
+     local output
+     output="$(pacman -Qu 2>/dev/null || true)"
+     if [[ -n "$output" ]]; then
+       printf '%s\n' "$output"
+       log "Des mises à jour Pacman sont disponibles."
+     else
+       log "Aucune mise à jour Pacman disponible."
+     fi
+     ;;
+   zypper)
+     local output
+     output="$(zypper --non-interactive list-updates 2>&1 || true)"
+     printf '%s\n' "$output"
+     grep -q '^No updates found' <<<"$output" && log "Aucune mise à jour Zypper disponible." || log "Vérification Zypper terminée."
+     ;;
+   apk)
+     local output
+     output="$(apk version -l '<' 2>&1 || true)"
+     if [[ -n "$output" ]]; then
+       printf '%s\n' "$output"
+       log "Des mises à jour APK sont disponibles."
+     else
+       log "Aucune mise à jour APK disponible."
+     fi
+     ;;
+   xbps)
+     local output
+     output="$(xbps-install -Mun 2>&1 || true)"
+     if [[ -n "$output" ]]; then
+       printf '%s\n' "$output"
+       log "Des mises à jour XBPS sont disponibles."
+     else
+       log "Aucune mise à jour XBPS disponible."
+     fi
+     ;;
+   emerge)
+     emerge -pvuDN @world || true
+     log "Vérification Gentoo terminée."
+     ;;
  esac
 
- if command -v flatpak >/dev/null; then
+ if has flatpak; then
    log "Vérification des mises à jour Flatpak..."
    local fp_out fp_uout
    fp_out="$(flatpak remote-ls --updates 2>/dev/null || true)"
@@ -261,9 +290,19 @@ check(){
    fi
  fi
 }
+
 update(){
- [[ $EUID -eq 0 ]] || exec sudo "$0" update
- exec 9>"$LOCK_FILE"; flock -n 9 || die "Une mise à jour est déjà en cours."
+ if [[ $EUID -ne 0 ]]; then
+   if [[ -t 0 ]] && has sudo; then
+     exec sudo "$0" update
+   else
+     die "La mise à jour nécessite les privilèges root."
+   fi
+ fi
+
+ exec 9>"$LOCK_FILE"
+ flock -n 9 || die "Une mise à jour est déjà en cours."
+
  local m native_rc=0 flatpak_rc=0 snap_rc=0 fwupd_rc=0
  m="$(manager)"
  log "Système : $(os)"
@@ -272,6 +311,7 @@ update(){
  update_native "$m" || native_rc=$?
  if (( native_rc == 0 )); then
    log "$m : OK"
+   sync_packagekit
  else
    log "$m : ÉCHEC (code $native_rc)"
  fi
@@ -281,12 +321,14 @@ update(){
  update_firmware || fwupd_rc=$?
 
  reboot_required && log "Un redémarrage est requis." || true
+
  if (( native_rc != 0 || flatpak_rc != 0 || snap_rc != 0 || fwupd_rc != 0 )); then
    log "Mise à jour terminée avec des erreurs."
    return 1
  fi
  log "Mise à jour terminée."
 }
+
 main(){
  case "${1:-status}" in
    check) check ;;

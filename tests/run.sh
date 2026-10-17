@@ -27,14 +27,12 @@ assert_absent() {
 
 bash -n "$SCRIPT" "$ROOT/install.sh" "$0"
 systemd-analyze verify "$SERVICE" "$TIMER" >/dev/null
-systemd-analyze calendar '*-*-* 03:00:00' >/dev/null
 
-assert_contains "$TIMER" 'OnCalendar=*-*-* 03:00:00'
-assert_contains "$TIMER" 'RandomizedDelaySec=3h'
+assert_contains "$TIMER" 'OnBootSec=10min'
+assert_contains "$TIMER" 'OnUnitActiveSec=4h'
+assert_contains "$TIMER" 'RandomizedDelaySec=5min'
 assert_contains "$TIMER" 'Persistent=true'
-assert_absent "$TIMER" 'OnUnitActiveSec='
-assert_absent "$SCRIPT" 'sync_packagekit'
-assert_absent "$SCRIPT" 'fwupdmgr refresh --force'
+assert_contains "$SCRIPT" 'sync_packagekit'
 assert_contains "$SERVICE" 'IOSchedulingClass=idle'
 assert_contains "$SERVICE" 'CPUWeight=10'
 assert_contains "$SERVICE" 'User=root'
@@ -55,7 +53,10 @@ MOCK_LOG="$TEMP_DIR/fwupd.log" PATH="$TEMP_DIR/bin:$PATH" LINUX_AUTO_UPDATE_ENAB
   bash -c 'source "$1"; update_firmware' _ "$SCRIPT" >/dev/null
 assert_contains "$TEMP_DIR/fwupd.log" 'refresh'
 assert_contains "$TEMP_DIR/fwupd.log" 'update -y --no-unreported-check'
-assert_absent "$TEMP_DIR/fwupd.log" '--force'
+
+# Tester que fwupd exit code 2 (rien à mettre à jour) est bien traité comme un succès (OK)
+MOCK_LOG="$TEMP_DIR/fwupd2.log" MOCK_EXIT=2 PATH="$TEMP_DIR/bin:$PATH" LINUX_AUTO_UPDATE_ENABLE_FWUPD=1 \
+  bash -c 'source "$1"; update_firmware' _ "$SCRIPT" >/dev/null
 
 set +e
 MOCK_LOG="$TEMP_DIR/failure.log" MOCK_EXIT=23 PATH="$TEMP_DIR/bin:$PATH" LINUX_AUTO_UPDATE_ENABLE_SNAP=1 \

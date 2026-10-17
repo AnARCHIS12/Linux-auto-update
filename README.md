@@ -44,7 +44,7 @@ sudo ./install.sh
 sudo systemctl enable --now linux-auto-update.timer
 ```
 
-The updater runs once per day between 03:00 and 06:00, with a stable randomized delay per machine. A missed run is performed after the next boot.
+The updater runs 10 minutes after boot, then every 4 hours with a short randomized delay. Missed runs are performed immediately upon power on.
 
 Do not enable another automatic package updater at the same time. On Fedora, for example, disable the download-only DNF timer after installing Linux Auto Update:
 
