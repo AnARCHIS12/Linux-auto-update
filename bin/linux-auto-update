@@ -51,7 +51,7 @@ update_native(){
 
 sync_packagekit(){
  if has pkcon; then
-   pkcon refresh force -c -1 >/dev/null 2>&1 || true
+   pkcon refresh force -c 1 >/dev/null 2>&1 || true
  fi
 }
 
@@ -116,7 +116,7 @@ update_flatpaks(){
 
 update_snap(){
  local rc=0
- if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" != 1 ]]; then
+ if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-1}" != 1 ]]; then
    log "Snap : ignoré (désactivé)"
    return 0
  fi
@@ -165,7 +165,7 @@ status(){
  fi
 
  if has snap; then
-   if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-0}" == 1 ]]; then
+   if [[ "${LINUX_AUTO_UPDATE_ENABLE_SNAP:-1}" == 1 ]]; then
      snap_status="oui (activé)"
    else
      snap_status="oui (désactivé)"

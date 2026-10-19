@@ -36,18 +36,31 @@ assert_contains "$SCRIPT" 'sync_packagekit'
 assert_contains "$SERVICE" 'IOSchedulingClass=idle'
 assert_contains "$SERVICE" 'CPUWeight=10'
 assert_contains "$SERVICE" 'User=root'
+assert_contains "$SERVICE" 'Environment=LINUX_AUTO_UPDATE_ENABLE_SNAP=1'
 assert_contains "$SERVICE" 'Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
+assert_contains "$ROOT/install.sh" '[[ "$state" == "enabled" || "$state" == "enabled-runtime" ]]'
+assert_absent "$ROOT/install.sh" 'is-enabled --quiet dnf-automatic.timer'
 
 "$SCRIPT" status >/dev/null
 
 mkdir -p "$TEMP_DIR/bin"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >> "$MOCK_LOG"' 'exit "${MOCK_EXIT:-0}"' > "$TEMP_DIR/bin/snap"
 printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >> "$MOCK_LOG"' 'exit "${MOCK_EXIT:-0}"' > "$TEMP_DIR/bin/fwupdmgr"
-chmod 0755 "$TEMP_DIR/bin/snap" "$TEMP_DIR/bin/fwupdmgr"
+printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\\n" "$*" >> "$MOCK_LOG"' 'exit "${MOCK_EXIT:-0}"' > "$TEMP_DIR/bin/pkcon"
+chmod 0755 "$TEMP_DIR/bin/snap" "$TEMP_DIR/bin/fwupdmgr" "$TEMP_DIR/bin/pkcon"
+
+MOCK_LOG="$TEMP_DIR/pkcon.log" PATH="$TEMP_DIR/bin:$PATH" \
+  bash -c 'source "$1"; sync_packagekit' _ "$SCRIPT" >/dev/null
+assert_contains "$TEMP_DIR/pkcon.log" 'refresh force -c 1'
+assert_absent "$TEMP_DIR/pkcon.log" '-c -1'
 
 MOCK_LOG="$TEMP_DIR/snap.log" PATH="$TEMP_DIR/bin:$PATH" LINUX_AUTO_UPDATE_ENABLE_SNAP=1 \
   bash -c 'source "$1"; update_snap' _ "$SCRIPT" >/dev/null
 assert_contains "$TEMP_DIR/snap.log" 'refresh'
+
+MOCK_LOG="$TEMP_DIR/snap-default.log" PATH="$TEMP_DIR/bin:$PATH" \
+  bash -c 'source "$1"; update_snap' _ "$SCRIPT" >/dev/null
+assert_contains "$TEMP_DIR/snap-default.log" 'refresh'
 
 MOCK_LOG="$TEMP_DIR/fwupd.log" PATH="$TEMP_DIR/bin:$PATH" LINUX_AUTO_UPDATE_ENABLE_FWUPD=1 \
   bash -c 'source "$1"; update_firmware' _ "$SCRIPT" >/dev/null

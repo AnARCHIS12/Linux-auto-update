@@ -44,7 +44,16 @@ sudo ./install.sh
 sudo systemctl enable --now linux-auto-update.timer
 ```
 
-The updater runs 10 minutes after boot, then every 4 hours with a short randomized delay. Missed runs are performed immediately upon power on.
+The updater runs 10 minutes after boot, then every 4 hours with a short randomized delay.
+
+To deploy a newer checkout over an existing installation, rerun the installer:
+
+```bash
+git pull --ff-only
+sudo ./install.sh
+```
+
+Updating the repository alone does not replace the executable and systemd units already installed on the system.
 
 Do not enable another automatic package updater at the same time. On Fedora, for example, disable the download-only DNF timer after installing Linux Auto Update:
 
@@ -64,15 +73,15 @@ linux-auto-update update
 
 ### Snap
 
-Snap support is available but **disabled by default**.
+Snap updates are **enabled by default** when Snap is installed.
 
-Enable Snap updates for a manual update:
+To disable Snap updates for a manual run:
 
 ```bash
-sudo LINUX_AUTO_UPDATE_ENABLE_SNAP=1 linux-auto-update update
+sudo LINUX_AUTO_UPDATE_ENABLE_SNAP=0 linux-auto-update update
 ```
 
-To enable Snap updates for the systemd timer:
+To disable Snap updates for the systemd timer:
 
 ```bash
 sudo systemctl edit linux-auto-update.service
@@ -82,7 +91,7 @@ Add:
 
 ```ini
 [Service]
-Environment=LINUX_AUTO_UPDATE_ENABLE_SNAP=1
+Environment=LINUX_AUTO_UPDATE_ENABLE_SNAP=0
 ```
 
 Then reload systemd:
